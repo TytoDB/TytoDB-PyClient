@@ -1,2 +1,4 @@
-./dist
-./tytodb_pyclient.egg-info
+# Build artifacts
+dist/
+*.egg-info/
+build/
