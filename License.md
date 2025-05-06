@@ -10,4 +10,4 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 3. A perpetual, worldwide, royalty-free is hereby granted to all recipients of the Software, solely for using or distributing the Software. This license is a condition of use; anyone using the Software agrees to be bound by these patent terms.
 
-4. Modified versions of the Software must not misrepresent the origin. Any derivative work must clearly state that it is a modified version and must use the name “TytoDB” or the original author's name in a way that implies endorsement or authorship, unless explicit permission is granted.
+4. Modified versions of the Software must not misrepresent the origin. Any derivative work must clearly state that it is a modified version and must use the name “TytoDB PyClient” or the original author's name in a way that implies endorsement or authorship, unless explicit permission is granted.
