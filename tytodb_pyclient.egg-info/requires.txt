@@ -1,3 +1,0 @@
-blake3
-cffi
-cryptography
