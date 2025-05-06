@@ -15,20 +15,19 @@ The connection handler just send a command to the database execute and return a 
 from tytodb_client import TytoDBClient
 
 # Create a connection to the TytoDB instance
-client = TytoDBClient(host="your-tytodb-host", port=12345, username="your-username", password="your-password")
+SECRET_KEY : bytes = b"your-secret-key"
+client = ConnectionHandler("tytodb://<host>:<data_port>:<connections_port>",SECRET_KEY)
 
 # Example of how to get a list of available rows from a table
-result = client.query("SEARCH * FROM your_container")
+result = client.command("SEARCH * FROM your_container")
 
 # Process the result
-for row in result:
+for row in result.rows:
     print(row)
 
 # Example of using the client to insert a new row
-client.query("CREATE ROW ['row_name'][0] ON 'your_container'")
+client.command("CREATE ROW ['row_name'][0] ON 'your_container'")
 
-# Close the connection when done
-client.close()
 ```
 ## Requirements
 - Python 3.6+
