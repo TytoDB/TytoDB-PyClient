@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="tytodb-pyclient",
-    version="0.1.1",
+    version="0.1.2",
     author="ttd3v",
     description="A TytoDB client for python",
     packages=find_packages(include=["tytodb_client", "tytodb_client.*"]),
