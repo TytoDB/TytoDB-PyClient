@@ -144,7 +144,7 @@ class ConnectionHandler:
             success = bool(payload[0])
             if not success:
                 raise AuthenticationError("Authentication failed")
-            session_id_cipher = payload[1:]   [success] + iv + ciphertext
+            session_id_cipher = payload[1:]
             iv = session_id_cipher[:12]
             ciphertext = session_id_cipher[12:]
             self.session_id = self.cipher.decrypt(iv, ciphertext, None)  
