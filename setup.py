@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="tytodb-pyclient",
-    version="0.1.4",
+    version="0.1.5",
     author="ttd3v",
     description="A TytoDB client for python",
     packages=find_packages(include=["tytodb_client", "tytodb_client.*"]),
@@ -10,7 +10,7 @@ setup(
         "blake3",
         "cffi",
         "cryptography",
-        "pyzmq"
+        "requests"
     ],
     python_requires=">=3.6",
 )

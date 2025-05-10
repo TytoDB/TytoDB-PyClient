@@ -1,11 +1,14 @@
-import socket as socket_module,re,json
+import re,json
 import blake3,lzma
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from os import urandom
-from socket import socket as Socket
-import zmq
 from typing import Any, List
 import base64
+import requests
+import logging
+
+# Enable logging for urllib3
+logging.basicConfig(level=logging.DEBUG)
 
 class AuthenticationError(Exception):
     def __init__(self, message):
@@ -72,68 +75,66 @@ class QueryResult:
         return "query<"+self.id+">"
     def __repr__(self) -> str:
         return str(self)
-
 class ConnectionHandler:
     def __init__(self, url: str, secret_key: bytes, timeout: int = 5):
-        match = re.match(r"tytodb://([0-9]{1,3}(?:\.[0-9]{1,3}){3}):([0-9]{1,5}):([0-9]{1,5})$", url)
+        
+        match = re.match(r"tytodb://([0-9]{1,3}(?:\.[0-9]{1,3}){3}):([0-9]{1,5}), url")
         if not match:
-            raise BadURLError("Invalid URL format. Expected: tytodb://<ip>:<command_port>:<auth_port>")
+            raise BadURLError("Invalid URL format. Expected: tytodb://<ip>:<port>")
         if len(secret_key) not in (16, 24, 32):
             raise ValueError("Secret key must be 16, 24, or 32 bytes")
         self.ip = match.group(1)
-        self.command_port = match.group(2)
-        self.authenticate_port = match.group(3)
+        self.port = match.group(2)
         self.secret_key = secret_key
         self.cipher = AESGCM(secret_key)
         self.timeout = timeout
         self.authenticated = False
+        self.client = requests.session()
+        self.url = "http://"+self.ip+":"+self.port
         self.authenticate()
-        self.context = zmq.Context()
-        self.socket : zmq.Socket = self.context.socket(zmq.REQ)
-        self.socket.connect("tcp://"+self.ip+":"+self.command_port)   
-        self.socket.setsockopt(zmq.RCVTIMEO, timeout*1000)
-        self.socket.setsockopt(zmq.SNDTIMEO, timeout*1000)
+        
     def command(self, command: str, arguments: List[Any]) -> QueryResult:
         if not self.authenticated:
             raise AuthenticationError("Not authenticated")
         try:
+            step = 0
+            print("client step",step)
+            step += 1
             data_connection = {'command': command, 'arguments': [str(x) for x in arguments]}
             json_datacon = json.dumps(data_connection).encode('utf-8')
-            json_datacon = lzma.compress(json_datacon, format=lzma.FORMAT_XZ, check=lzma.CHECK_SHA256)
             iv = urandom(12)
+            print("client step",step)
+            step += 1
             encrypted = self.session_cipher.encrypt(iv, json_datacon, None)  
             payload = self.session_id_hash + iv + encrypted
-            
-            self.socket.send(payload)
-            bresponse = self.socket.recv()
+            response = self.client.post(self.url,data=payload)
+            print("client step",step)
+            step += 1
+            print("client step send",step)
+            step += 1
+            print("sent, now receiving...")
+            bresponse = response.content
             size = int.from_bytes(bresponse[:8])
             response = bresponse[8:]
             if size == 0:
                 raise RuntimeError("Something went wrong:Empty response.") 
+            print("client step",step)
+            step += 1
             iv = response[:12]
             ciphertext = response[12:]
             print(len(iv),len(ciphertext))
-            decrypted_and_uncompressed = lzma.decompress(self.session_cipher.decrypt(iv, ciphertext, None))
-            content : str= decrypted_and_uncompressed.decode('utf-8')
+            content : str= self.session_cipher.decrypt(iv, ciphertext, None)
+            print("client step",step)
+            step += 1
             print(content)
             result = json.loads(content)
             return QueryResult(result,self)
         except Exception as e:
             raise RuntimeError(e)
     def authenticate(self):
-        socket = socket_module.create_connection((self.ip, int(self.authenticate_port)), self.timeout)
         try:
-            socket.sendall(blake3.blake3(self.secret_key).digest(32))
-            payload = b""
-            socket.settimeout(5)
-            while True:
-                b = socket.recv(10)
-                if not b:
-                    break
-                payload += b
-            success = bool(payload[0])
-            if not success:
-                raise AuthenticationError("Authentication failed")
+            response = self.client.put(self.url,data=blake3.blake3(self.secret_key).digest(32))
+            payload = response.content
             session_id_cipher = payload[1:]
             iv = session_id_cipher[:12]
             ciphertext = session_id_cipher[12:]
@@ -141,7 +142,6 @@ class ConnectionHandler:
             self.session_cipher = AESGCM(self.session_id)  
             self.session_id_hash = blake3.blake3(self.session_id).digest(32)
             self.authenticated = True
-        except socket_module.error as e:
+            
+        except Exception as e:
             raise AuthenticationError(f"Authentication failed: {e}")
-        finally:
-            socket.close()
