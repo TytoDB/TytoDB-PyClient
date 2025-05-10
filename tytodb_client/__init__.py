@@ -3,7 +3,7 @@ import blake3,lzma
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from os import urandom
 from socket import socket as Socket
-
+import zmq
 from typing import Any, List
 import base64
 
@@ -15,22 +15,6 @@ class BadURLError(Exception):
     def __init__(self, message):
             super().__init__(message)
 
-def send_all(socket, data):
-    total_sent = 0
-    while total_sent <= len(data):
-        sent = socket.send(data[total_sent:])
-        if sent == 0:
-            break
-        total_sent += sent
-
-def recv_all(sock, n):
-    buf = b''
-    while len(buf) < n:
-        chunk = sock.recv(n - len(buf))
-        if not chunk:
-            break
-        buf += chunk
-    return buf
 
 class QueryResult:
     success : bool = False
@@ -104,32 +88,35 @@ class ConnectionHandler:
         self.timeout = timeout
         self.authenticated = False
         self.authenticate()
+        self.context = zmq.Context()
+        self.socket : zmq.Socket = self.context.socket(zmq.REQ)
+        self.socket.connect("tcp://"+self.ip+":"+self.command_port)   
+        self.socket.setsockopt(zmq.RCVTIMEO, timeout*1000)
+        self.socket.setsockopt(zmq.SNDTIMEO, timeout*1000)
     def command(self, command: str, arguments: List[Any]) -> QueryResult:
         if not self.authenticated:
             raise AuthenticationError("Not authenticated")
-        data_connection = {'command': command, 'arguments': [str(x) for x in arguments]}
-        json_datacon = json.dumps(data_connection).encode('utf-8')
-        json_datacon = lzma.compress(json_datacon, format=lzma.FORMAT_XZ, check=lzma.CHECK_SHA256)
-        iv = urandom(12)
-        encrypted = self.session_cipher.encrypt(iv, json_datacon, None)  
-        payload = self.session_id_hash + iv + encrypted
-        length = (len(iv) + len(encrypted)).to_bytes(4, byteorder='big')
-        data_socket = socket_module.create_connection((self.ip, int(self.command_port)), self.timeout)
-        send_all(data_socket, length + payload)
-        
-        length_bytes = recv_all(data_socket, 8)
-        length = int.from_bytes(length_bytes, 'big')
-        if length == 0:
-            raise RuntimeError("Something went wrong, check the database logs.")
-        response = recv_all(data_socket, length)
-        iv = response[:12]
-        ciphertext = response[12:]
-        print(len(iv),len(ciphertext))
-        decrypted_and_uncompressed = lzma.decompress(self.session_cipher.decrypt(iv, ciphertext, None))
-        content : str= decrypted_and_uncompressed.decode('utf-8')
-        print(content)
-        result = json.loads(content)
-        return QueryResult(result,self)
+        try:
+            data_connection = {'command': command, 'arguments': [str(x) for x in arguments]}
+            json_datacon = json.dumps(data_connection).encode('utf-8')
+            json_datacon = lzma.compress(json_datacon, format=lzma.FORMAT_XZ, check=lzma.CHECK_SHA256)
+            iv = urandom(12)
+            encrypted = self.session_cipher.encrypt(iv, json_datacon, None)  
+            payload = self.session_id_hash + iv + encrypted
+            
+            self.socket.send(payload)
+            response = self.socket.recv()
+
+            iv = response[:12]
+            ciphertext = response[12:]
+            print(len(iv),len(ciphertext))
+            decrypted_and_uncompressed = lzma.decompress(self.session_cipher.decrypt(iv, ciphertext, None))
+            content : str= decrypted_and_uncompressed.decode('utf-8')
+            print(content)
+            result = json.loads(content)
+            return QueryResult(result,self)
+        except Exception as e:
+            raise RuntimeError(e)
     def authenticate(self):
         socket = socket_module.create_connection((self.ip, int(self.authenticate_port)), self.timeout)
         try:
