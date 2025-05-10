@@ -105,8 +105,11 @@ class ConnectionHandler:
             payload = self.session_id_hash + iv + encrypted
             
             self.socket.send(payload)
-            response = self.socket.recv()
-
+            bresponse = self.socket.recv()
+            size = int.from_bytes(bresponse[:8])
+            response = bresponse[8:]
+            if size == 0:
+                raise RuntimeError("Something went wrong:Empty response.") 
             iv = response[:12]
             ciphertext = response[12:]
             print(len(iv),len(ciphertext))
