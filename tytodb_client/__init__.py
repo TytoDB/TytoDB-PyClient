@@ -5,10 +5,6 @@ from os import urandom
 from typing import Any, List
 import base64
 import requests
-import logging
-
-# Enable logging for urllib3
-logging.basicConfig(level=logging.DEBUG)
 
 class AuthenticationError(Exception):
     def __init__(self, message):
@@ -78,7 +74,7 @@ class QueryResult:
 class ConnectionHandler:
     def __init__(self, url: str, secret_key: bytes, timeout: int = 5):
         
-        match = re.match(r"tytodb://([0-9]{1,3}(?:\.[0-9]{1,3}){3}):([0-9]{1,5}), url")
+        match = re.match(r"tytodb://([0-9]{1,3}(?:\.[0-9]{1,3}){3}):([0-9]{1,5})", url)
         if not match:
             raise BadURLError("Invalid URL format. Expected: tytodb://<ip>:<port>")
         if len(secret_key) not in (16, 24, 32):
@@ -97,36 +93,20 @@ class ConnectionHandler:
         if not self.authenticated:
             raise AuthenticationError("Not authenticated")
         try:
-            step = 0
-            print("client step",step)
-            step += 1
             data_connection = {'command': command, 'arguments': [str(x) for x in arguments]}
             json_datacon = json.dumps(data_connection).encode('utf-8')
             iv = urandom(12)
-            print("client step",step)
-            step += 1
             encrypted = self.session_cipher.encrypt(iv, json_datacon, None)  
             payload = self.session_id_hash + iv + encrypted
             response = self.client.post(self.url,data=payload)
-            print("client step",step)
-            step += 1
-            print("client step send",step)
-            step += 1
-            print("sent, now receiving...")
             bresponse = response.content
             size = int.from_bytes(bresponse[:8])
             response = bresponse[8:]
             if size == 0:
                 raise RuntimeError("Something went wrong:Empty response.") 
-            print("client step",step)
-            step += 1
             iv = response[:12]
             ciphertext = response[12:]
-            print(len(iv),len(ciphertext))
             content : str= self.session_cipher.decrypt(iv, ciphertext, None)
-            print("client step",step)
-            step += 1
-            print(content)
             result = json.loads(content)
             return QueryResult(result,self)
         except Exception as e:
