@@ -16,10 +16,10 @@ from tytodb_client import TytoDBClient
 
 # Create a connection to the TytoDB instance
 SECRET_KEY : bytes = b"your-secret-key"
-client = ConnectionHandler("tytodb://<host>:<data_port>:<connections_port>",SECRET_KEY)
+client = ConnectionHandler("tytodb://<host>:<data_port>",SECRET_KEY)
 
 # Example of how to get a list of available rows from a table
-result = client.command("SEARCH ['row'] FROM your_container")
+result = client.command("SEARCH ['row'] ON ['your_container']")
 
 # Process the result
 for row in result.rows:
